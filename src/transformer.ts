@@ -111,6 +111,52 @@ function validateCodecs(moovBox: BoxNode): void {
 }
 
 /**
+ * Update chunk offsets in stco/co64 boxes to account for the new file structure
+ */
+function updateChunkOffsets(node: BoxNode, offsetDifference: number): void {
+  if (node.type === "stco" && node.data) {
+    // Update chunk offsets in 'stco' box (32-bit offsets)
+    const dataView = new DataView(node.data.buffer);
+
+    // First 4 bytes are version+flags, next 4 bytes are entry count
+    const entryCount = dataView.getUint32(4, false);
+
+    // Update each chunk offset
+    for (let i = 0; i < entryCount; i++) {
+      const offsetPos = 8 + i * 4;
+      if (offsetPos + 4 <= node.data.byteLength) {
+        const currentOffset = dataView.getUint32(offsetPos, false);
+        dataView.setUint32(offsetPos, currentOffset + offsetDifference, false);
+      }
+    }
+  } else if (node.type === "co64" && node.data) {
+    // Update chunk offsets in 'co64' box (64-bit offsets)
+    const dataView = new DataView(node.data.buffer);
+
+    // First 4 bytes are version+flags, next 4 bytes are entry count
+    const entryCount = dataView.getUint32(4, false);
+
+    // Update each chunk offset (64-bit)
+    for (let i = 0; i < entryCount; i++) {
+      const offsetPos = 8 + i * 8;
+      if (offsetPos + 8 <= node.data.byteLength) {
+        // For simplicity, we assume the high 32 bits are 0
+        // This is reasonable for our use case with files < 4GB
+        const lowBits = dataView.getUint32(offsetPos + 4, false);
+        dataView.setUint32(offsetPos + 4, lowBits + offsetDifference, false);
+      }
+    }
+  }
+
+  // Recursively process children
+  if (node.children) {
+    for (const child of node.children) {
+      updateChunkOffsets(child, offsetDifference);
+    }
+  }
+}
+
+/**
  * Rebuild 'moov' box for MP4 compatibility
  */
 export function rebuildMOOV(nodes: BoxNode[]): BoxNode {
@@ -147,13 +193,57 @@ export function rebuildMOOV(nodes: BoxNode[]): BoxNode {
   // Clone the moov box structure
   const newMoovBox = cloneMoovBox(moovBox);
 
-  // For a real implementation, we would need to:
-  // 1. Fix chunk offsets in 'stco'/'co64' boxes to account for new 'ftyp' size
-  // 2. Update any QuickTime-specific atoms to MP4 equivalents
-  // 3. Ensure timescales and durations are properly set
+  // Calculate offset difference
+  // In the new MP4 file, boxes will be: [ftyp, moov, mdat]
+  // Get new ftyp size
+  const ftypSize = filterAndRewriteFTYP(nodes).size;
 
-  // For now, we'll just return the cloned box
+  // Find original ftyp and mdat
+  const originalFtyp = nodes.find((node) => node.type === "ftyp");
+  const originalMdat = nodes.find((node) => node.type === "mdat");
+
+  // Calculate the difference in offset for mdat
+  let offsetDifference = 0;
+
+  if (originalFtyp && originalMdat) {
+    // Calculate where mdat will start in the new file
+    const newMdatStart = ftypSize + newMoovBox.size;
+    // Calculate where mdat started in the original file
+    const oldMdatStart = originalMdat.start;
+    // Calculate the difference
+    offsetDifference = newMdatStart - oldMdatStart;
+  }
+
+  // Update chunk offsets in stco/co64 boxes
+  updateChunkOffsets(newMoovBox, offsetDifference);
+
+  // Fix QuickTime-specific atoms if present
+  fixQuickTimeAtoms(newMoovBox);
+
   return newMoovBox;
+}
+
+/**
+ * Fix QuickTime-specific atoms for MP4 compatibility
+ */
+function fixQuickTimeAtoms(moovBox: BoxNode): void {
+  // Convert 'wide' atoms if present
+  // Update QuickTime-specific metadata
+  // Other compatibility fixes as needed
+
+  if (moovBox.children) {
+    // Remove any 'qt' specific boxes that aren't compatible with MP4
+    moovBox.children = moovBox.children.filter((child) => {
+      return !["qt", "wide"].includes(child.type);
+    });
+
+    // Recursively fix children
+    for (const child of moovBox.children) {
+      if (child.children) {
+        fixQuickTimeAtoms(child);
+      }
+    }
+  }
 }
 
 /**

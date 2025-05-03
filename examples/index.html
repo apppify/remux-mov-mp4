@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MOV to MP4 Remuxer Demo</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        line-height: 1.6;
+      }
+      h1 {
+        color: #333;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+      }
+      .container {
+        background-color: #f9f9f9;
+        border-radius: 5px;
+        padding: 20px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+      .input-section {
+        margin-bottom: 20px;
+      }
+      .video-preview {
+        margin-top: 20px;
+        width: 100%;
+        max-height: 400px;
+        background-color: #000;
+        display: none;
+      }
+      button {
+        background-color: #4caf50;
+        border: none;
+        color: white;
+        padding: 8px 16px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+      #downloadLink {
+        display: none;
+        margin-top: 10px;
+        padding: 8px 16px;
+        background-color: #2196f3;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+      }
+      #status {
+        margin-top: 20px;
+        padding: 10px;
+        border-radius: 4px;
+        display: none;
+      }
+      .error {
+        background-color: #ffebee;
+        color: #c62828;
+        border: 1px solid #ffcdd2;
+      }
+      .success {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+        border: 1px solid #c8e6c9;
+      }
+      .info {
+        background-color: #e3f2fd;
+        color: #1565c0;
+        border: 1px solid #bbdefb;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>MOV to MP4 Remuxer Demo</h1>
+
+    <div class="container">
+      <p>
+        This demo uses the <code>remux-mov-mp4</code> library to convert
+        QuickTime (.mov) files to MP4 (.mp4) container format directly in your
+        browser without re-encoding. This preserves the original video and audio
+        quality.
+      </p>
+
+      <div class="input-section">
+        <p><b>Step 1:</b> Select a .mov file</p>
+        <input type="file" id="fileInput" accept=".mov" />
+      </div>
+
+      <div class="input-section">
+        <p><b>Step 2:</b> Convert the file</p>
+        <button id="convertButton" disabled>Convert to MP4</button>
+      </div>
+
+      <div id="status"></div>
+
+      <a id="downloadLink" download="converted.mp4">Download MP4 File</a>
+
+      <video id="videoPreview" class="video-preview" controls></video>
+    </div>
+
+    <script type="module">
+      // Import the library (when using in a real project)
+      // import { remuxMovToMp4 } from '../dist/index.js';
+
+      // For the demo, we'll include the library via <script> tag or CDN
+
+      const fileInput = document.getElementById("fileInput");
+      const convertButton = document.getElementById("convertButton");
+      const videoPreview = document.getElementById("videoPreview");
+      const downloadLink = document.getElementById("downloadLink");
+      const statusElement = document.getElementById("status");
+
+      let selectedFile = null;
+
+      // Listen for file selection
+      fileInput.addEventListener("change", (event) => {
+        selectedFile = event.target.files[0];
+
+        if (selectedFile) {
+          // Check if file extension is .mov
+          if (!selectedFile.name.toLowerCase().endsWith(".mov")) {
+            showStatus("Please select a .mov file", "error");
+            convertButton.disabled = true;
+            return;
+          }
+
+          // Enable convert button
+          convertButton.disabled = false;
+          showStatus(
+            `Selected file: ${selectedFile.name} (${formatFileSize(
+              selectedFile.size
+            )})`,
+            "info"
+          );
+        } else {
+          convertButton.disabled = true;
+          hideStatus();
+        }
+      });
+
+      // Handle conversion
+      convertButton.addEventListener("click", async () => {
+        if (!selectedFile) return;
+
+        // Disable button during conversion
+        convertButton.disabled = true;
+        showStatus("Converting...", "info");
+
+        try {
+          // Read the file as ArrayBuffer
+          const buffer = await readFileAsArrayBuffer(selectedFile);
+
+          // Start timing for performance measurement
+          const startTime = performance.now();
+
+          // Import the remuxMovToMp4 function dynamically
+          // In a real application, you would just use the import statement at the top
+          const { remuxMovToMp4 } = await import("../dist/index.js");
+
+          // Perform the conversion
+          const mp4Data = await remuxMovToMp4(buffer);
+
+          console.log("mp4Data", mp4Data);
+
+          // Calculate time taken
+          const timeTaken = ((performance.now() - startTime) / 1000).toFixed(2);
+
+          // Create a blob and URL for the converted file
+          const mp4Blob = new Blob([mp4Data], { type: "video/mp4" });
+          const url = URL.createObjectURL(mp4Blob);
+
+          // Set up video preview
+          videoPreview.src = url;
+          videoPreview.style.display = "block";
+
+          // Set up download link
+          downloadLink.href = url;
+          downloadLink.download = selectedFile.name.replace(".mov", ".mp4");
+          downloadLink.style.display = "inline-block";
+
+          // Show success message
+          showStatus(
+            `Conversion successful! File size: ${formatFileSize(
+              mp4Data.byteLength
+            )}, Time: ${timeTaken}s`,
+            "success"
+          );
+        } catch (error) {
+          console.error("Conversion error:", error);
+          showStatus(
+            `Error: ${error.message}. See console for details.`,
+            "error"
+          );
+        } finally {
+          // Re-enable the button
+          convertButton.disabled = false;
+        }
+      });
+
+      // Helper function to read file as ArrayBuffer
+      function readFileAsArrayBuffer(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("Failed to read file"));
+          reader.readAsArrayBuffer(file);
+        });
+      }
+
+      // Helper function to format file size
+      function formatFileSize(bytes) {
+        if (bytes === 0) return "0 Bytes";
+
+        const k = 1024;
+        const sizes = ["Bytes", "KB", "MB", "GB"];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+      }
+
+      // Status message helpers
+      function showStatus(message, type) {
+        statusElement.textContent = message;
+        statusElement.className = type;
+        statusElement.style.display = "block";
+      }
+
+      function hideStatus() {
+        statusElement.style.display = "none";
+      }
+    </script>
+  </body>
+</html>
