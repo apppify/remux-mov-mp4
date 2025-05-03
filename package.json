@@ -29,7 +29,12 @@
     "container",
     "browser"
   ],
-  "author": "",
+  "author": "Apppify <info@apppify.com>",
+  "homepage": "https://apppify.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/apppify/remux-mov-mp4.git"
+  },
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.15.3",
