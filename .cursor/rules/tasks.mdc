@@ -1,0 +1,57 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Task List
+
+1. **Project Setup**
+
+   - Initialize `npm` + `package.json` with `"module"` entry and ESModule target.
+   - Configure build (`rollup`/`tsup`) to output ESM bundle.
+
+2. **Parser Module (`parser.ts`)**
+
+   - Export `parseBoxes(buffer: ArrayBuffer): BoxNode[]` implementing **Cursor Rules** above.
+   - Define `interface BoxNode { type: string; size: number; start: number; end: number; children?: BoxNode[]; data?: Uint8Array; }`.
+
+3. **Transformer Module (`transformer.ts`)**
+
+   - `filterAndRewriteFTYP(nodes: BoxNode[]): BoxNode` → generate new `ftyp` box with MP4 brands.
+   - `rebuildMOOV(nodes: BoxNode[]): BoxNode` → adjust `moov` metadata (timescale/offsets).
+   - `collectMDAT(nodes: BoxNode[]): BoxNode` → ensure single `mdat`, copy raw data pointer.
+
+4. **Serializer Module (`serializer.ts`)**
+
+   - `serializeBox(node: BoxNode): Uint8Array` → write size/type/payload.
+   - `serialize(nodes: BoxNode[]): Uint8Array` → concatenate all boxes: `[ftyp, moov, mdat]`.
+
+5. **Remux API (`index.ts`)**
+
+   - `export async function remuxMovToMp4(buffer: ArrayBuffer): Promise<Uint8Array>`:
+
+     1. `const nodes = parseBoxes(buffer)`
+     2. `const ftyp = filterAndRewriteFTYP(nodes)`
+     3. `const moov = rebuildMOOV(nodes)`
+     4. `const mdat = collectMDAT(nodes)`
+     5. `return serialize([ftyp, moov, mdat])`
+
+6. **Error Handling & Validation**
+
+   - Throw descriptive errors (`ParseError`, `UnsupportedCodecError`, `InvalidInputError`).
+   - Add runtime checks for buffer size & box integrity.
+
+7. **Unit Tests**
+
+   - Use `vitest` or `jest` to cover:
+
+     - Parsing simple `.mov` fixtures.
+     - Rejecting unsupported codecs.
+     - Correct size/type rewriting of `ftyp`.
+     - Final `Uint8Array` plays in browser `<video>` element.
+
+8. **Bundling & Publishing**
+
+   - Configure `exports` in `package.json`.
+   - Add `types` declaration for TypeScript users.
+   - Prepare for `npm publish`.

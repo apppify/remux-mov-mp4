@@ -1,0 +1,21 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+This project is a lightweight ESM library whose sole purpose is to **remux** a QuickTime `.mov` file into an MPEG-4 `.mp4` container **without any re-encoding** of audio or video streams. The core idea revolves around **parsing** the binary structure of ISO Base Media File Format (boxes/atoms), **filtering** and **rewriting** only the container metadata boxes (e.g., `ftyp`, `moov`, `mdat`), and **serializing** them back into a valid MP4 file.
+
+- **Project Structure**
+
+  - **parser.ts**: Implements a byte-wise cursor that walks through the ArrayBuffer to identify and extract boxes.
+  - **transformer.ts**: Applies high-level rules to accept, drop, or rewrite specific boxes.
+  - **serializer.ts**: Serializes the filtered/rebuilt boxes into a contiguous Uint8Array for the final `.mp4`.
+  - **index.ts**: Provides a single function `remuxMovToMp4(buffer)` that orchestrates parsing, transforming, and serializing.
+  - **tests/**: Unit tests verifying correct parsing, error handling, and output compatibility.
+  - **build tools**: ESM bundler (e.g., `tsup`) and `package.json` for distribution.
+
+- **Purpose & Use Case**
+
+  - **Client-Side Remuxing**: Avoids large WASM builds or server roundtrips for simple container rewriting.
+  - **Tiny Footprint**: Pure JS/TS solution \~5 KB gzipped.
+  - **Browser Compatibility**: Works anywhere Typed Arrays and ArrayBuffers are supported.

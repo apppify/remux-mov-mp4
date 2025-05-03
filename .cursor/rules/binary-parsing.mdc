@@ -1,0 +1,47 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Binary Parsing
+
+1. **Buffer & Cursor Initialization**
+
+   - Input: `ArrayBuffer` of the `.mov` file.
+   - Use a `DataView` + an index pointer `cursor = 0`.
+
+2. **Read Box Header**
+
+   - Read **4 bytes** at `cursor` as **big‑endian uint32** → `size`.
+   - Read **next 4 bytes** as **ASCII chars** → `type` (e.g. `ftyp`, `moov`, `mdat`, etc.).
+   - Advance `cursor += 8`.
+
+3. **Extended Size Handling**
+
+   - If `size === 1`, read **8 bytes** as big‑endian uint64 → `size`, then `cursor += 8`.
+   - If `size === 0`, box extends to end of file: `size = buffer.byteLength - boxStart`.
+
+4. **Box Payload Boundaries**
+
+   - Compute `payloadStart = cursor` and `payloadEnd = boxStart + size`.
+   - Ensure `payloadEnd <= buffer.byteLength` or throw `InvalidBoxError`.
+
+5. **Container vs. Leaf**
+
+   - For **container boxes** (`moov`, `trak`, `mdia`, `stbl`), recurse: parse nested boxes.
+   - For **leaf boxes** (`mdat`, `ftyp`, `free`, `udta`), slice raw bytes: `buffer.slice(payloadStart, payloadEnd)`.
+
+6. **Supported vs. Unsupported Boxes**
+
+   - Accept only: `ftyp`, `moov`, `mdat`.
+   - Drop: `udta`, proprietary atoms, padding.
+
+7. **Tree Construction**
+
+   - Build nodes: `{ type, size, start, end, children?, data? }`.
+
+8. **Error Conditions**
+
+   - Non‑H.264/AAC → `UnsupportedCodecError`.
+   - Box overlap/mismatch → `ParseError`.
+
