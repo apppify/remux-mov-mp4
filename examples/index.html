@@ -173,8 +173,6 @@
           // Perform the conversion
           const mp4Data = await remuxMovToMp4(buffer);
 
-          console.log("mp4Data", mp4Data);
-
           // Calculate time taken
           const timeTaken = ((performance.now() - startTime) / 1000).toFixed(2);
 
